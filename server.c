@@ -10,7 +10,7 @@
 
 void error_print(char *error_msg);
 void request_print(char *response_msg, char *request_msg);
-
+void request_file(char *response_msg, char *request_msg);
 int main(int argc, char *argv[]){
     if (argc < 2) { // 인자가 충분치 않다.
         fprintf(stderr, "Argument is out of quntity.\n"); // 에러문 출력후 클라이언트 종료
@@ -59,12 +59,12 @@ int main(int argc, char *argv[]){
     char *response_msg; // 받은 메시지
     request_msg = malloc( (size_t)MSG_SIZE ); // 256 바이트만큼 공간 할당.
     response_msg = malloc( (size_t)MSG_SIZE ); // 256 바이트만큼 공간 할당.
-    memset(response_msg, 0 ,MSG_SIZE);
-    memset(request_msg, 0 ,MSG_SIZE);
+    
     
 
     while(1){
-        
+        memset(response_msg, 0 ,MSG_SIZE);
+        memset(request_msg, 0 ,MSG_SIZE);       
         if( (socket_fd = accept( server_socket_fd, (struct sockaddr *)&client_addr, &req_client)) < 0){
             error_print("Fail to accpet");
         }
@@ -92,7 +92,8 @@ int main(int argc, char *argv[]){
         // }
         // printf("%s\n",request_msg);
         // printf("%s\n",response_msg);
-        request_print(response_msg, request_msg);
+        // request_print(response_msg, request_msg);
+        request_file(response_msg, request_msg);
         if ( write(socket_fd, response_msg, strlen(response_msg))  < 0 ) { 
             error_print("Fail to writing to socket.");
         }
@@ -124,6 +125,31 @@ void request_print(char *response_msg, char *request_msg){
     }
     int content_length = 7 + strlen(req);
     sprintf(response_msg, "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-length: %d\r\n\r\n<h>%s</h>",content_length,req);
+}
+
+void request_file(char *response_msg, char *request_msg){
+    FILE* openfile;
+    char method[10];
+    char filename[30]; // '/' 로 잘라서 request 분석해보장
+    strcpy(method, strtok(request_msg, "/")); //method(GET)얻을 것으로 예상. 근데 정확히 "GET "을 얻을것으로 예상
+    strcpy(filename, strtok(NULL,"/")); // file name  ex) index.html
+    strtok(filename, " ");
+    if( strcmp(filename, "favicon.ico" ) == 0) { return ;} // segmantation 오류 임시 방편
+    char proto[] = "HTTP/1.1 200 OK\r\n";
+    char content_type[] = "Content-Type: text/html\r\n"; // filename을 strtok해서 얻어야 될듯 일단 html로 고정시키자.
+    // printf("%s\n",filename);
+    openfile = fopen(filename, "r"); // read로 열자.
+    char *req = malloc(sizeof(char)*MSG_SIZE);
+    int idx = 0;
+    int c;
+    while( (c = fgetc(openfile)) != EOF ){
+        req[idx++] = c;
+    }
+    fclose(openfile);
+
+    int content_length = strlen(req);
+    sprintf(response_msg, "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-length: %d\r\n\r\n<h>%s</h>",content_length, req);
+
 }
 
 void error_print(char *error_msg){

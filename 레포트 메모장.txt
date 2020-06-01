@@ -90,6 +90,49 @@ recv랑 send 했떠니 존나 이상하게 나옴.
 근데 request 문구가 계속 뒷 부분이 짤린다.
 그러면 버퍼 크기를 늘린다
 
+해결 완료했다. 
+
+근데 아이콘에 관련된 request도 처리해주는게 문제다.
+리퀘스트문을 보면 favicon문자열로 처리해줘야 할 같다.
+
+근데 favicon도 출력 해줘야 하나?
+우선 localhost 이후에 request 되니깐.... 불가능?
+
+strtok 이용해 어느 정도 가능
+
+html 파일  open 했다.
+
+코드 고쳐야 할 부분이 많지만 동작 순서는 인식함
+
+이제 해야할건
+favicon.ico  예외 설정
+파일 type에 따른 request 변화
+
+content type
+http : text/html
+mp3 : audio/mpeg or  audio/mpeg3 or audio/x-mpeg-3
+
+html 양식
+-mp3
+<figure>
+    <figcaption>Listen to the T-Rex:</figcaption>
+    <audio
+        controls
+        src="/media/examples/t-rex-roar.mp3">
+            Your browser does not support the
+            <code>audio</code> element.
+    </audio>
+</figure>
+
+-image
+<img src="images/test.jpeg">
+
+-pdf
+<embed src="file_name.pdf" width="800px" height="2100px" />
+or
+<iframe src="https://docs.google.com/gview?url=https://path.com/to/your/pdf.pdf&embedded=true" style="width:600px; height:500px;" frameborder="0"></iframe>
+
+
 
 
 

@@ -6,13 +6,10 @@
 #include <stdlib.h> // exit 사용
 #include <arpa/inet.h>
 
-#define MSG_SIZE 256
+#define MSG_SIZE 4096
 
 void error_print(char *error_msg);
-struct message_str {
-    int message_length;
-    char message_body[MSG_SIZE];
-} ;
+void request_print(char *response_msg, char *request_msg);
 
 int main(int argc, char *argv[]){
     if (argc < 2) { // 인자가 충분치 않다.
@@ -51,69 +48,83 @@ int main(int argc, char *argv[]){
     listen(server_socket_fd, 7); // 소켓의 연결 대기열 만들어서 대기상태. 연결 요청 대기 함수.
     // backlog는 요청 대기 큐의 크기 
     
-
+    int socket_fd;
     //요청이 들어오면 받아 줘야 한다.
-    socklen_t req_client = sizeof(client_addr);
-    // 클라이언트 주소 정보 길이를 미리 지정해준다.
-
-    int socket_fd = accept( server_socket_fd, (struct sockaddr *)&client_addr, &req_client);
-    /*
-        첫번째 인자 : 서버 소켓 디스크립터
-        두번쨰 인자 : 클라이언트 주소 정보
-        세번쨰인자 : 클라이언트 주소 정보 길이
-    */
-    // 새 소켓 디스크립터 생성해서 클라이언트의 request를 받는다.
-    char temp[20]; 
-    memset(temp,0,sizeof(char)*20);
-    inet_ntop(AF_INET, &client_addr.sin_addr.s_addr, temp, sizeof(temp)); // 클라이언트 주소 정보
-
-    printf("connection is successful : %s\n", temp);
-
-    if( socket_fd < 0){
-        error_print("Fail to accpet");
-    }
+    socklen_t req_client = sizeof(client_addr); // 클라이언트 주소 정보 길이를 미리 지정해준다.
+    
+    
+    // char client_address[20]; 
+    // inet_ntop(AF_INET, &client_addr.sin_addr.s_addr, client_address, sizeof(client_address)); // 클라이언트 주소 정보
     char *request_msg; // 보낼 메시지
-    request_msg = malloc( (size_t)MSG_SIZE ); // 256 바이트만큼 공간 할당.
     char *response_msg; // 받은 메시지
+    request_msg = malloc( (size_t)MSG_SIZE ); // 256 바이트만큼 공간 할당.
     response_msg = malloc( (size_t)MSG_SIZE ); // 256 바이트만큼 공간 할당.
-
-    while(1){
-        memset(response_msg, 0 ,MSG_SIZE);
-        memset(request_msg, 0 ,MSG_SIZE);
-
-        
-        struct message_str receive_seg;
-        struct message_str request_seg;
-        if( recv(socket_fd, &receive_seg, sizeof(receive_seg), 0 ) < 0 ){
-            error_print("receive error");
-        }
-
-        printf("to server from client (%d) : %s", receive_seg.message_length, receive_seg.message_body);
-
-        printf("enter the msg : ");
-        fgets(request_msg, MSG_SIZE, stdin ); // 메시지 입력을 받는다.
-        request_seg.message_length = strlen(request_msg);
-        strcpy(request_seg.message_body, request_msg);
-
-        if ( send(socket_fd, &request_seg, (size_t)sizeof(request_seg), 0) < 0 ){
-            error_print("send error");
-        }
-        // 오류가 없다면 메시지는 서버로 잘 전달되었을 것이다.
-    }
-
+    memset(response_msg, 0 ,MSG_SIZE);
+    memset(request_msg, 0 ,MSG_SIZE);
     
 
+    while(1){
+        
+        if( (socket_fd = accept( server_socket_fd, (struct sockaddr *)&client_addr, &req_client)) < 0){
+            error_print("Fail to accpet");
+        }
+            /*
+                첫번째 인자 : 서버 소켓 디스크립터
+                두번쨰 인자 : 클라이언트 주소 정보
+                세번쨰인자 : 클라이언트 주소 정보 크기
+            */
+            // 새 소켓 디스크립터 생성해서 클라이언트의 request를 받는다.
+        printf("connection is successful : address: %s, port = % d\n", 
+            inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
+        
+        // if( recv(socket_fd, request_msg, sizeof(request_msg), 0 ) < 0 ){
+        //     error_print("receive error");
+        // }
+        if( read(socket_fd, request_msg, MSG_SIZE) < 0 ){
+            error_print("Fail to read");
+        }
+        
+        
+        // strcpy(response_msg, "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-length: 40\r\n\r\n<h1>hello world</h1>");
+        // strcat(response_msg, "<h>abcdefglkqwed</h>");
+        // if ( send(socket_fd, response_msg, strlen(response_msg), 0) < 0 ){
+        //     error_print("send error");
+        // }
+        // printf("%s\n",request_msg);
+        // printf("%s\n",response_msg);
+        request_print(response_msg, request_msg);
+        if ( write(socket_fd, response_msg, strlen(response_msg))  < 0 ) { 
+            error_print("Fail to writing to socket.");
+        }
 
+        close(socket_fd);
+        printf("-----------------------------------------------\n");
+    }
 
     free(response_msg);
     free(request_msg);
 
-    close(socket_fd);
+    close(server_socket_fd);
     return 0;
 }
 
 
-
+void request_print(char *response_msg, char *request_msg){
+    char proto[] = "HTTP/1.1 200 OK\r\n";
+    char content_type[] = "Content-Type: text/html\r\n";
+    // char content_length[] = "Content-length: 4096\r\n\r\n";
+    printf("\n%s\n",request_msg);
+    char *p = strtok(request_msg, "\n");
+    char *req = malloc(sizeof(char)*MSG_SIZE);
+    memset(req,0,sizeof(char)*MSG_SIZE);
+    while( p!= NULL){
+        strcat(req,p);
+        strcat(req,"<br>");
+        p = strtok(NULL, "\n");
+    }
+    int content_length = 7 + strlen(req);
+    sprintf(response_msg, "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-length: %d\r\n\r\n<h>%s</h>",content_length,req);
+}
 
 void error_print(char *error_msg){
     perror(error_msg);

@@ -77,7 +77,7 @@ int main(int argc, char *argv[]){
 
         printf("enter the msg : ");
         fgets(request_msg, MSG_SIZE, stdin ); // 메시지 입력을 받는다.
-
+        strcpy(request_msg, "HTTP/1.1 200 OK\nContent-length: 46\nContent-Type: text/html\n\n<html><body><H1>Hello world</H1></body></html>");
 
         if( strcmp(request_msg, "exit\n") == 0){
             break;

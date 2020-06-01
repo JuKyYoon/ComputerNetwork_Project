@@ -10,4 +10,3 @@ server : server.c
 
 clean:
 	rm client server
-	

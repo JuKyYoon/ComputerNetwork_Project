@@ -4,10 +4,13 @@
 #include <string.h>
 #include <unistd.h> 
 #include <stdlib.h> // exit 사용
+#include <arpa/inet.h>
 
 #define MSG_SIZE 256
 
 void error_print(char *error_msg);
+void reading_header(int socket_fd, char* msg, size_t leng);
+void making_header(int socket_fd, const char* msg, size_t leng);
 
 int main(int argc, char *argv[]){
     if (argc < 2) { // 인자가 충분치 않다.
@@ -58,9 +61,12 @@ int main(int argc, char *argv[]){
         세번쨰인자 : 클라이언트 주소 정보 길이
     */
     // 새 소켓 디스크립터 생성해서 클라이언트의 request를 받는다.
+    char temp[20]; 
+    memset(temp,0,sizeof(char)*20);
+    inet_ntop(AF_INET, &client_addr.sin_addr.s_addr, temp, sizeof(temp)); // 클라이언트 주소 정보
 
-    printf("connection is successful\n");
-    
+    printf("connection is successful : %s\n", temp);
+
     if( socket_fd < 0){
         error_print("Fail to accpet");
     }
@@ -73,17 +79,20 @@ int main(int argc, char *argv[]){
         memset(response_msg, 0 ,MSG_SIZE);
         memset(request_msg, 0 ,MSG_SIZE);
 
-        if( read(socket_fd, response_msg, MSG_SIZE) < 0 ){
-            error_print("Fail to read");
-        }
+        // if( read(socket_fd, response_msg, MSG_SIZE) < 0 ){
+        //     error_print("Fail to read");
+        // }
 
-        printf("to server from client : %s", response_msg);
-        printf("enter the msg : ");
+        // printf("to server from client : %s", response_msg);
+        // printf("enter the msg : ");
+        reading_header(socket_fd, response_msg, MSG_SIZE);
+
         fgets(request_msg, MSG_SIZE, stdin ); // 메시지 입력을 받는다.
-        if ( write(socket_fd, request_msg, strlen(request_msg))  < 0 ) { 
-            // write함수를 이용해 소켓에 메시지를 작성한다.
-            error_print("Fail to writing to socket.");
-        }
+        // if ( write(socket_fd, request_msg, strlen(request_msg))  < 0 ) { 
+        //     // write함수를 이용해 소켓에 메시지를 작성한다.
+        //     error_print("Fail to writing to socket.");
+        // }
+        making_header(socket_fd, request_msg, strlen(request_msg));
         // 오류가 없다면 메시지는 서버로 잘 전달되었을 것이다.
     }
 
@@ -101,12 +110,33 @@ int main(int argc, char *argv[]){
 
 
 
-
-
-
-
-
 void error_print(char *error_msg){
     perror(error_msg);
     exit(1);
+}
+
+
+void reading_header(int socket_fd, char* msg, size_t leng){
+    size_t msg_length;
+    if( read(socket_fd, (char*)&msg_length , sizeof(size_t) ) < 0 ){
+        error_print("Fail to read : length");
+    }
+    msg_length = ntohl(msg_length); // 출력 가능하게 만들어 준다.
+
+    if( read(socket_fd, msg, MSG_SIZE) < 0 ){
+        error_print("Fail to read");
+    }
+    printf("to server from client (%ld) : %s", msg_length, msg);
+    printf("enter the msg : ");
+}
+
+void making_header(int socket_fd, const char* msg, size_t leng){
+    size_t msg_length = htonl(leng); // 형식에 알맞게 길이 데이터 형식 변경
+    if ( write(socket_fd, (char*)&msg_length, sizeof(size_t) )  < 0 ) { 
+        error_print("Fail to writing to socket. : message length");
+    }
+
+    if ( write(socket_fd, msg, strlen(msg))  < 0 ) { 
+        error_print("Fail to writing to socket. : message");
+    }
 }

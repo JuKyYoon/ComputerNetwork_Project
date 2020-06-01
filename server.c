@@ -9,8 +9,10 @@
 #define MSG_SIZE 256
 
 void error_print(char *error_msg);
-void reading_header(int socket_fd, char* msg, size_t leng);
-void making_header(int socket_fd, const char* msg, size_t leng);
+struct message_str {
+    int message_length;
+    char message_body[MSG_SIZE];
+} ;
 
 int main(int argc, char *argv[]){
     if (argc < 2) { // 인자가 충분치 않다.
@@ -79,20 +81,23 @@ int main(int argc, char *argv[]){
         memset(response_msg, 0 ,MSG_SIZE);
         memset(request_msg, 0 ,MSG_SIZE);
 
-        // if( read(socket_fd, response_msg, MSG_SIZE) < 0 ){
-        //     error_print("Fail to read");
-        // }
+        
+        struct message_str receive_seg;
+        struct message_str request_seg;
+        if( recv(socket_fd, &receive_seg, sizeof(receive_seg), 0 ) < 0 ){
+            error_print("receive error");
+        }
 
-        // printf("to server from client : %s", response_msg);
-        // printf("enter the msg : ");
-        reading_header(socket_fd, response_msg, MSG_SIZE);
+        printf("to server from client (%d) : %s", receive_seg.message_length, receive_seg.message_body);
 
+        printf("enter the msg : ");
         fgets(request_msg, MSG_SIZE, stdin ); // 메시지 입력을 받는다.
-        // if ( write(socket_fd, request_msg, strlen(request_msg))  < 0 ) { 
-        //     // write함수를 이용해 소켓에 메시지를 작성한다.
-        //     error_print("Fail to writing to socket.");
-        // }
-        making_header(socket_fd, request_msg, strlen(request_msg));
+        request_seg.message_length = strlen(request_msg);
+        strcpy(request_seg.message_body, request_msg);
+
+        if ( send(socket_fd, &request_seg, (size_t)sizeof(request_seg), 0) < 0 ){
+            error_print("send error");
+        }
         // 오류가 없다면 메시지는 서버로 잘 전달되었을 것이다.
     }
 
@@ -113,30 +118,4 @@ int main(int argc, char *argv[]){
 void error_print(char *error_msg){
     perror(error_msg);
     exit(1);
-}
-
-
-void reading_header(int socket_fd, char* msg, size_t leng){
-    size_t msg_length;
-    if( read(socket_fd, (char*)&msg_length , sizeof(size_t) ) < 0 ){
-        error_print("Fail to read : length");
-    }
-    msg_length = ntohl(msg_length); // 출력 가능하게 만들어 준다.
-
-    if( read(socket_fd, msg, MSG_SIZE) < 0 ){
-        error_print("Fail to read");
-    }
-    printf("to server from client (%ld) : %s", msg_length, msg);
-    printf("enter the msg : ");
-}
-
-void making_header(int socket_fd, const char* msg, size_t leng){
-    size_t msg_length = htonl(leng); // 형식에 알맞게 길이 데이터 형식 변경
-    if ( write(socket_fd, (char*)&msg_length, sizeof(size_t) )  < 0 ) { 
-        error_print("Fail to writing to socket. : message length");
-    }
-
-    if ( write(socket_fd, msg, strlen(msg))  < 0 ) { 
-        error_print("Fail to writing to socket. : message");
-    }
 }

@@ -17,17 +17,40 @@ char **h_addr_list; //도메인 이름에 대한 IP주소가 정수 형태로 �
 
 hostent는 위와 같은 구조를 가지고 있으며. 서버 접속을 위해 사용.
 
+struct sockaddr_in { 
+short sin_family; // 주소 체계: 항상 AF_INET으로 설정 (IPv4)
+AF_INET u_short sin_port; // 16 비트 포트 번호, network byte order 
+struct in_addr sin_addr; // 32 비트 IP 주소 
+char sin_zero[8]; // 전체 크기를 16 비트로 맞추기 위한 dummy };
+
+struct in_addr { 
+u_long s_addr; // 32비트 IP 주소를 저장 할 구조체, network byte order 
+};
+
+포트 주소를 담기 위해 구조체 사용
+
+https://techlog.gurucat.net/292 참고
+
+
+IPv4란 무엇인가?
+cmd에서 ipconfig를 쳐보거나 이더넷 상태에서 속성을 통해 사용할 프로토콜을 체크 할 수 있다.
+설명에 따르면 기본은 ipv4이고 최신버전은 ipv6이라고 나와있다. (윈도우 10 기준)
 
 
 
+server_address.sin_addr.s_addr = server->h_addr;은 assignment makes integer from pointer without a cast 경고
 
+찾아보니깐 htonl : host to network long : 빅 엔디안으로 통일되어 넣어준다.
 
+htons는 short htonl은 long. 어떤 형의 데이터를 보내는 지에 따라 결정
 
-
-
-
+ServAddr.sin_addr.s_addr = htonl(INADDR_ANY);은 알아서 해주는거
+inet_addr 함수 사용할 수 있지만, IPv6을 지원하지 않는 게 큰 문제점이다.,
 
 
 서버
 
 인자는 1개를 받는다. 포트번호.. 
+
+서버는 bind사용해 포트번호 배정 -> 클라이언트가 서버에 접근하기 위해 고정된 포트 필요
+반대로 서버는 클라이언트의 정보를 알 필요가 없어서 클아이언트에서는 bind가 커널에서 이루어짐

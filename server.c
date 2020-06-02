@@ -21,13 +21,12 @@ char* get_content_type(char *filename, char *file_extension);
 
 int main(int argc, char *argv[]){
     
-    char *request_msg; // 보낼 메시지
-    unsigned char *response_msg; // 받은 메시지
+    char *request_msg  = malloc( sizeof(char)*100000);// 보낼 메시지
+    unsigned char *response_msg = malloc( sizeof(char)*100000000); // 받은 메시지
     
     struct sockaddr_in server_address, client_addr; // 소켓 주소를 담는 구조체, 서버와 클라이언트 2개 필요하다
     int socket_fd;
-    request_msg = malloc( (size_t)MSG_SIZE *5); 
-    response_msg = malloc( (size_t)100000000);
+
 
 
     //명령 인수 검사
@@ -68,8 +67,8 @@ int main(int argc, char *argv[]){
     // inet_ntop(AF_INET, &client_addr.sin_addr.s_addr, client_address, sizeof(client_address)); // 클라이언트 주소 정보
 
     while(1){
-        memset(response_msg, 0 ,MSG_SIZE*5);
-        memset(request_msg, 0 ,MSG_SIZE*5);   
+        memset(response_msg, 0 ,100000000);
+        memset(request_msg, 0 ,100000);   
         if( (socket_fd = accept( server_socket_fd, (struct sockaddr *)&client_addr, &req_client)) < 0){
             error_print("Fail to accpet");
         }
@@ -107,7 +106,8 @@ int main(int argc, char *argv[]){
 
 void request_handle(char *response_msg, char *request_msg, int *response_size){
     printf("first request handle function\n");
-    char request_msg_copy[MSG_SIZE*5]; // 복사본 생성
+    char *request_msg_copy = malloc( sizeof(char)*100000); // 복사본 생성
+
     strcpy(request_msg_copy, request_msg);
     // printf("\n%s\n", request_msg_copy);
     printf("%s",request_msg_copy);
@@ -123,6 +123,7 @@ void request_handle(char *response_msg, char *request_msg, int *response_size){
     printf("complete method\n");
     strcpy(filename, strtok(NULL," ")); // file name  ex) '/index.html', '/'
     printf("complete filename\n");
+    free(request_msg_copy);
     if (!strcmp(filename, "/") ){ // 입력받은 파일이 없을 경우
         request_print(response_msg, request_msg, response_size); // request 파일을 출력해준다.
     }
@@ -154,6 +155,7 @@ void request_print(char *response_msg, char *request_msg, int *response_size){
     }
     int content_length = 7 + strlen(req); // 처음부터 req에 strcat <h> 하고 나중에 </h>붙이고 길이 구하면 더 간단해질듯.
     *response_size = sprintf(response_msg, "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-length: %d\r\n\r\n<h>%s</h>",content_length,req);
+    free(req);
     printf("@@@@@@@@@@@@@@@\n%s\n@@@@@@@@@@@@@@@@\n",response_msg);
 }
 
@@ -183,6 +185,7 @@ void request_html_file(char *response_msg, char *request_msg, char *filename, in
     req[idx] = 0;
     fclose(openfile);
     *response_size = sprintf(response_msg, "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-length: %ld\r\n\r\n%s",strlen(req), req);
+    free(req);
     printf("@@@@@@@@@@@@@@@\n%s\n@@@@@@@@@@@@@@@@\n",response_msg);
 }
 
@@ -208,28 +211,26 @@ void request_mp3_file(char *response_msg, char *request_msg, char *filename, int
     int cout = 0;
     int total = 0;
     printf("!!!!%ld\n",strlen(send_buffer));
-    // fread(send_buffer, file_size, 1, openfile);
+    fread(send_buffer, file_size, 1, openfile);
     int i=0,j;
     int c = 100;
     printf("buffer size : %d\n", sizeof(send_buffer));
 
-    // printf("%d %d\n",response_msg[leng], '\n'); //leng -1지점이 \n 이고 leng이 NULL
-
-    while (feof(openfile) == 0){
-        cout = fread(send_buffer, 100000, 10, openfile);
-        total += cout;
-        printf("%d | total %d\n", i, total);
-        // if( i > 10900000){
-        //     printf("%d | ", i);
-        //     for(int k=0; k<16;k++){
-        //         printf("%02X ", (int)read_buffer[k]);
-        //     }
-        //     printf("\n");
-        // }
+    // while (feof(openfile) == 0){
+    //     cout = fread(send_buffer, 100000, 10, openfile);
+    //     total += cout;
+    //     printf("%d | total %d\n", i, total);
+    //     // if( i > 10900000){
+    //     //     printf("%d | ", i);
+    //     //     for(int k=0; k<16;k++){
+    //     //         printf("%02X ", (int)read_buffer[k]);
+    //     //     }
+    //     //     printf("\n");
+    //     // }
         
-        strncat(response_size, read_buffer,1000000);
-        i++;
-    }
+    //     strncat(response_size, read_buffer,1000000);
+    //     i++;
+    // }
     printf("___%d $\n", total);
 
     printf("leng is %d\n",leng);
@@ -242,7 +243,7 @@ void request_mp3_file(char *response_msg, char *request_msg, char *filename, int
     memcpy(response_msg+leng,  send_buffer, file_size);
     // strcat(request_msg, send_buffer);
     printf("!!!!%ld\n",strlen(send_buffer));
-
+    free(send_buffer);
     fclose(openfile);
 }
 
@@ -279,7 +280,7 @@ void request_image_file(char *response_msg, char *request_msg, char *filename, i
     memcpy(response_msg+leng,  send_buffer, file_size);
 
     printf("!!!!%ld\n",strlen(send_buffer));
-
+    free(send_buffer);
     fclose(openfile);
     
 }

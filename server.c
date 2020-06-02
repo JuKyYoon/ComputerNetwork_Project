@@ -16,6 +16,7 @@ void request_file(char *response_msg, char *request_msg, char *filename, char *f
 void request_handle(char *response_msg, char *request_msg, int *response_size);
 void request_html_file(char *response_msg, char *request_msg, char *filename, int *response_size);
 void request_mp3_file(char *response_msg, char *request_msg, char *filename, int *response_size);
+void request_pdf_file(char *response_msg, char *request_msg, char *filename, int *response_size);
 void request_image_file(char *response_msg, char *request_msg, char *filename, int *response_size);
 char* get_content_type(char *filename, char *file_extension);
 
@@ -172,6 +173,9 @@ void request_file(char *response_msg, char *request_msg, char *filename, char *f
         printf("image request!!1\n");
         request_image_file(response_msg, request_msg, filename, response_size);
     }
+    else if(!strcmp(file_extension, "pdf")){
+        request_pdf_file(response_msg, request_msg, filename, response_size);
+    }
 }
 
 void request_html_file(char *response_msg, char *request_msg, char *filename, int *response_size){
@@ -216,21 +220,6 @@ void request_mp3_file(char *response_msg, char *request_msg, char *filename, int
     int c = 100;
     printf("buffer size : %d\n", sizeof(send_buffer));
 
-    // while (feof(openfile) == 0){
-    //     cout = fread(send_buffer, 100000, 10, openfile);
-    //     total += cout;
-    //     printf("%d | total %d\n", i, total);
-    //     // if( i > 10900000){
-    //     //     printf("%d | ", i);
-    //     //     for(int k=0; k<16;k++){
-    //     //         printf("%02X ", (int)read_buffer[k]);
-    //     //     }
-    //     //     printf("\n");
-    //     // }
-        
-    //     strncat(response_size, read_buffer,1000000);
-    //     i++;
-    // }
     printf("___%d $\n", total);
 
     printf("leng is %d\n",leng);
@@ -285,6 +274,49 @@ void request_image_file(char *response_msg, char *request_msg, char *filename, i
     
 }
 
+void request_pdf_file(char *response_msg, char *request_msg, char *filename, int *response_size){
+    printf("pdf function wwwww\n");
+    FILE *openfile;
+    if( (openfile = fopen(filename, "rb")) < 0){ exit(0); }
+    printf("open the file : %s\n",filename);
+    fseek(openfile, 0, SEEK_END);
+    int file_size = ftell(openfile);
+    
+    fseek(openfile, 0, SEEK_SET);
+    int leng= sprintf(response_msg, "HTTP/1.1 200 OK\r\ncontent-Type: application/pdf; qs=0.001\r\ncontent-length: %d\r\n\r\n", file_size);
+    *response_size = file_size + leng;
+    printf("Sending Picture as Byte Array %d\n", file_size);
+    // // no link between BUFSIZE and the file size
+    unsigned char read_buffer[1000];
+
+    unsigned char *send_buffer;
+    send_buffer = malloc(100000000);
+
+    memset(send_buffer, 0 , sizeof(char)*100000000);
+    int cout = 0;
+    int total = 0;
+    printf("!!!!%ld\n",strlen(send_buffer));
+    fread(send_buffer, file_size, 1, openfile);
+    int i=0,j;
+    int c = 100;
+    printf("buffer size : %d\n", sizeof(send_buffer));
+
+    printf("___%d $\n", total);
+
+    printf("leng is %d\n",leng);
+    printf("%02X\n",(int)send_buffer[0]);
+    printf("%02X\n",(int)send_buffer[1]);
+    printf("%02X\n",(int)send_buffer[file_size-2]);
+    printf("%02X\n",(int)send_buffer[file_size-1]); // last data
+    printf("%02X\n",(int)send_buffer[file_size]);
+    printf("%02X\n",(int)send_buffer[file_size+1]);
+    memcpy(response_msg+leng,  send_buffer, file_size);
+    // strcat(request_msg, send_buffer);
+    printf("!!!!%ld\n",strlen(send_buffer));
+    free(send_buffer);
+    fclose(openfile);
+}
+
 char* get_content_type(char *filename, char *file_extension){
     if (!strcmp(filename, "/") ){ // 입력받은 파일이 없을 경우
         return "requestprint"; // request 파일을 출력해준다.
@@ -318,6 +350,9 @@ char* get_content_type(char *filename, char *file_extension){
     }
     if(!strcmp(file_type+1, "jpg") || !strcmp(file_type+1, "jpeg")){
         return "image/jpeg";
+    }
+    if(!strcmp(file_type+1, "pdf")){
+        return "application/pdf";
     }
     return "nomake"; // 구현이 안 된것.
 }

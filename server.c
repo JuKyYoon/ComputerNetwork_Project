@@ -27,7 +27,7 @@ int main(int argc, char *argv[]){
     struct sockaddr_in server_address, client_addr; // 소켓 주소를 담는 구조체, 서버와 클라이언트 2개 필요하다
     int socket_fd;
     request_msg = malloc( (size_t)MSG_SIZE *5); 
-    response_msg = malloc( (size_t)1000000);
+    response_msg = malloc( (size_t)100000000);
 
 
     //명령 인수 검사
@@ -110,6 +110,7 @@ void request_handle(char *response_msg, char *request_msg, int *response_size){
     char request_msg_copy[MSG_SIZE*5]; // 복사본 생성
     strcpy(request_msg_copy, request_msg);
     // printf("\n%s\n", request_msg_copy);
+    printf("%s",request_msg_copy);
     printf("complete copy\n");
     char method[50];
     char *filename; // '/' 로 잘라서 request 분석해보장
@@ -117,6 +118,7 @@ void request_handle(char *response_msg, char *request_msg, int *response_size){
     char *file_extesion;
     file_extesion = malloc(sizeof(char)*30);
     filename = malloc(sizeof(char)*200);
+    printf("waiting strcpy method\n");
     strcpy(method, strtok(request_msg_copy, " ")); //method 'GET'
     printf("complete method\n");
     strcpy(filename, strtok(NULL," ")); // file name  ex) '/index.html', '/'
@@ -185,8 +187,63 @@ void request_html_file(char *response_msg, char *request_msg, char *filename, in
 }
 
 void request_mp3_file(char *response_msg, char *request_msg, char *filename, int *response_size){
-    char *req = malloc(sizeof(char)*MSG_SIZE); // 메모리 아낄러면 response에 계속 strcat 하는게 제일 좋을 듯.
-    sprintf(response_msg, "HTTP/1.1 200 OK\r\nContent-Type: audio/mpeg3\r\nContent-length: %ld\r\n\r\n%s",strlen(req), req);
+    printf("audio function wwwww\n");
+    FILE *openfile;
+    if( (openfile = fopen(filename, "rb")) < 0){ exit(0); }
+    printf("open the file : %s\n",filename);
+    fseek(openfile, 0, SEEK_END);
+    int file_size = ftell(openfile);
+    
+    fseek(openfile, 0, SEEK_SET);
+    int leng= sprintf(response_msg, "HTTP/1.1 200 OK\r\ncontent-Type: audio/mpeg3\r\ncontent-length: %d\r\n\r\n", file_size);
+    *response_size = file_size + leng;
+    printf("Sending Picture as Byte Array %d\n", file_size);
+    // // no link between BUFSIZE and the file size
+    unsigned char read_buffer[1000];
+
+    unsigned char *send_buffer;
+    send_buffer = malloc(100000000);
+
+    memset(send_buffer, 0 , sizeof(char)*100000000);
+    int cout = 0;
+    int total = 0;
+    printf("!!!!%ld\n",strlen(send_buffer));
+    // fread(send_buffer, file_size, 1, openfile);
+    int i=0,j;
+    int c = 100;
+    printf("buffer size : %d\n", sizeof(send_buffer));
+
+    // printf("%d %d\n",response_msg[leng], '\n'); //leng -1지점이 \n 이고 leng이 NULL
+
+    while (feof(openfile) == 0){
+        cout = fread(send_buffer, 100000, 10, openfile);
+        total += cout;
+        printf("%d | total %d\n", i, total);
+        // if( i > 10900000){
+        //     printf("%d | ", i);
+        //     for(int k=0; k<16;k++){
+        //         printf("%02X ", (int)read_buffer[k]);
+        //     }
+        //     printf("\n");
+        // }
+        
+        strncat(response_size, read_buffer,1000000);
+        i++;
+    }
+    printf("___%d $\n", total);
+
+    printf("leng is %d\n",leng);
+    printf("%02X\n",(int)send_buffer[0]);
+    printf("%02X\n",(int)send_buffer[1]);
+    printf("%02X\n",(int)send_buffer[file_size-2]);
+    printf("%02X\n",(int)send_buffer[file_size-1]); // last data
+    printf("%02X\n",(int)send_buffer[file_size]);
+    printf("%02X\n",(int)send_buffer[file_size+1]);
+    memcpy(response_msg+leng,  send_buffer, file_size);
+    // strcat(request_msg, send_buffer);
+    printf("!!!!%ld\n",strlen(send_buffer));
+
+    fclose(openfile);
 }
 
 void request_image_file(char *response_msg, char *request_msg, char *filename, int *response_size){
@@ -200,15 +257,14 @@ void request_image_file(char *response_msg, char *request_msg, char *filename, i
     fseek(openfile, 0, SEEK_SET);
     int leng= sprintf(response_msg, "HTTP/1.1 200 OK\r\ncontent-Type: image/jpeg\r\ncontent-length: %d\r\n\r\n", file_size);
     *response_size = file_size + leng;
-    // int leng= sprintf(response_msg, "HTTP/1.1 200 OK\r\nContent-Type: image/jpeg\r\nTransfer-Encoding: chunked\r\n\r\n");
     printf("Sending Picture as Byte Array %d\n", file_size);
     // // no link between BUFSIZE and the file size
     unsigned char read_buffer[1000];
-    // unsigned char send_buffer[1000000];
+
     unsigned char *send_buffer;
-    send_buffer = malloc(1000000);
-    // send_buffer = (int*)malloc(1000000);
-    memset(send_buffer, 0 , sizeof(char)*1000000);
+    send_buffer = malloc(sizeof(char)*100000000);
+
+    memset(send_buffer, 0 , sizeof(char)*100000000);
     int cout = 0;
     int total = 0;
     printf("!!!!%ld\n",strlen(send_buffer));
@@ -216,68 +272,14 @@ void request_image_file(char *response_msg, char *request_msg, char *filename, i
     int i=0,j;
     int c = 100;
     printf("buffer size : %d\n", sizeof(send_buffer));
-    // printf("%02X\n",(int)send_buffer[339241]);
-    // printf("%02X\n",(int)send_buffer[339242]); // 마지막
-    // printf("%02X\n",(int)send_buffer[339243]);
-    // printf("%02X\n",(int)send_buffer[339244]);
-    // printf("%02X\n",(int)send_buffer[339245]);
-    
-    // printf("%02X\n",(int)send_buffer[7724]); // a마지ㅣ막
-    // printf("%02X\n",(int)send_buffer[7725]); 
-    // printf("%02X\n",(int)send_buffer[7726]);
-    // printf("%02X\n",(int)send_buffer[7727]);
-    printf("%d %d\n",response_msg[leng], '\n'); //leng -1지점이 \n 이고 leng이 NULL
-    // for(i=0,j=leng ; i< file_size ;i++,j++){
-    //     if( i == 0){
-    //         printf("---%X---\n",(int)send_buffer[i]);
-    //         printf("---%X---\n",(int)response_msg[j]);
-    //     }
-    //     // response_msg[j] = send_buffer[i];  오류는 아니고 맨 앞값이 FFFFFF-- 으로 채워짐
-        
 
-    //     if( i == 0){
-    //         printf("---%X---\n",(int)send_buffer[i]);
-    //         printf("---%X---\n",(int)response_msg[j]);
-    //     }
-    // }
+    printf("%d %d\n",response_msg[leng], '\n'); //leng -1지점이 \n 이고 leng이 NULL
+
     printf("leng is %d\n",leng);
     memcpy(response_msg+leng,  send_buffer, file_size);
-    // printf("---%02X---\n",(int)send_buffer[7724]);
-    // printf("---%02X---\n",(int)response_msg[leng]);
-    // printf("---%02X---\n",(int)response_msg[leng+7724]);
-    // strncat(response_msg, send_buffer, (size_t)file_size);
-    
-    // while (i < sizeof(send_buffer))
-    // while (c--)
-    // {
-    //      printf("%02X",(int)send_buffer[i]);
-    //      printf("%02X",(int)response_msg[i]);
-    //      i++;
-    // }
-    // while( !feof(openfile)){
-    // // while( cout != 0 ){
-    //     memset(read_buffer, 0 , sizeof(char)*1000);
-    //     cout = fread(send_buffer, sizeof(char), 850, openfile);
-        
-    //     strcat(send_buffer, read_buffer);
-    //     total += cout;
-        
-    //     // printf("total : %d\n",total);
-    // }
-    // printf("%02X\n", (int)response_msg[67]); //1
-    // printf("%02X\n", (int)response_msg[68]); //2
-    // printf("%02X\n", (int)response_msg[69]); //3
-    // printf("%02X\n", (int)response_msg[70]); //4
-    // printf("%02X\n", (int)response_msg[71]); //5 // this
-    // printf("%02X\n", (int)response_msg[72]); //5 // this
+
     printf("!!!!%ld\n",strlen(send_buffer));
 
-    // printf("%02X\n", (int)response_msg[67]); //1
-    // printf("%02X\n", (int)response_msg[68]); //2
-    // printf("%02X\n", (int)response_msg[69]); //3
-    // printf("%02X\n", (int)response_msg[70]); //4
-    // printf("%02X\n", (int)response_msg[71]); //5 // this
-    // int idx=0;
     fclose(openfile);
     
 }

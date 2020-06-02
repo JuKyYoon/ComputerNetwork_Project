@@ -11,22 +11,23 @@
 #define MSG_SIZE 4096
 
 void error_print(char *error_msg);
-void request_print(char *response_msg, char *request_msg);
-void request_file(char *response_msg, char *request_msg, char *filename, char *file_extension);
-void request_handle(char *response_msg, char *request_msg);
-void request_html_file(char *response_msg, char *request_msg, char *filename);
-void request_mp3_file(char *response_msg, char *request_msg, char *filename);
-void request_image_file(char *response_msg, char *request_msg, char *filename);
+void request_print(char *response_msg, char *request_msg, int *response_size);
+void request_file(char *response_msg, char *request_msg, char *filename, char *file_extension, int *response_size);
+void request_handle(char *response_msg, char *request_msg, int *response_size);
+void request_html_file(char *response_msg, char *request_msg, char *filename, int *response_size);
+void request_mp3_file(char *response_msg, char *request_msg, char *filename, int *response_size);
+void request_image_file(char *response_msg, char *request_msg, char *filename, int *response_size);
 char* get_content_type(char *filename, char *file_extension);
 
 int main(int argc, char *argv[]){
-    int socket_fd;
+    
     char *request_msg; // 보낼 메시지
-    char *response_msg; // 받은 메시지
+    unsigned char *response_msg; // 받은 메시지
+    
     struct sockaddr_in server_address, client_addr; // 소켓 주소를 담는 구조체, 서버와 클라이언트 2개 필요하다
-
-    request_msg = malloc( (size_t)MSG_SIZE ); 
-    response_msg = malloc( (size_t)MSG_SIZE );
+    int socket_fd;
+    request_msg = malloc( (size_t)MSG_SIZE *5); 
+    response_msg = malloc( (size_t)1000000);
 
 
     //명령 인수 검사
@@ -61,14 +62,14 @@ int main(int argc, char *argv[]){
     
     //요청이 들어오면 받아 줘야 한다.
     socklen_t req_client = sizeof(client_addr); // 클라이언트 주소 정보 길이를 미리 지정해준다.
-    
+    int response_size = 0;
     
     // char client_address[20]; 
     // inet_ntop(AF_INET, &client_addr.sin_addr.s_addr, client_address, sizeof(client_address)); // 클라이언트 주소 정보
 
     while(1){
-        memset(response_msg, 0 ,MSG_SIZE);
-        memset(request_msg, 0 ,MSG_SIZE*2);   
+        memset(response_msg, 0 ,MSG_SIZE*5);
+        memset(request_msg, 0 ,MSG_SIZE*5);   
         if( (socket_fd = accept( server_socket_fd, (struct sockaddr *)&client_addr, &req_client)) < 0){
             error_print("Fail to accpet");
         }
@@ -84,12 +85,13 @@ int main(int argc, char *argv[]){
         printf("accept the request\n");
         // printf("%s\n",request_msg);
         
-        request_handle(response_msg, request_msg);
-        printf("@@@@@@@@@@@@@@@\n%s\n@@@@@@@@@@@@@@@@\n",response_msg);
-        if ( write(socket_fd, response_msg, strlen(response_msg))  < 0 ) { 
+        request_handle(response_msg, request_msg, &response_size);
+        
+        printf("***&&&&&%d--\n", response_size);
+
+        if ( write(socket_fd, response_msg, response_size)  < 0 ) { 
             error_print("Fail to writing to socket.");
         }
-           
         close(socket_fd);
         printf("----------------\n");
         
@@ -103,39 +105,43 @@ int main(int argc, char *argv[]){
 }
 
 
-void request_handle(char *response_msg, char *request_msg){
-    
-    char request_msg_copy[MSG_SIZE]; // 복사본 생성
+void request_handle(char *response_msg, char *request_msg, int *response_size){
+    printf("first request handle function\n");
+    char request_msg_copy[MSG_SIZE*5]; // 복사본 생성
     strcpy(request_msg_copy, request_msg);
     // printf("\n%s\n", request_msg_copy);
-    char method[10];
+    printf("complete copy\n");
+    char method[50];
     char *filename; // '/' 로 잘라서 request 분석해보장
     char content_type[50];
     char *file_extesion;
     file_extesion = malloc(sizeof(char)*30);
-    filename = malloc(sizeof(char)*100);
+    filename = malloc(sizeof(char)*200);
     strcpy(method, strtok(request_msg_copy, " ")); //method 'GET'
+    printf("complete method\n");
     strcpy(filename, strtok(NULL," ")); // file name  ex) '/index.html', '/'
-
+    printf("complete filename\n");
     if (!strcmp(filename, "/") ){ // 입력받은 파일이 없을 경우
-        request_print(response_msg, request_msg); // request 파일을 출력해준다.
+        request_print(response_msg, request_msg, response_size); // request 파일을 출력해준다.
     }
     else{ // 입력받은 파일이 있을 경우
         strcpy(content_type, get_content_type(filename,file_extesion)); // 파일의 확장자 명을 가져온다.
         if( !strcmp(content_type, "nomake") || access(filename+1,F_OK) < 0 ){ // 확장자 얻는 과정에서 이상이 있다. 혹은 해당 파일이 없다.
             // char error_msg[20] = "HTTP 404 NOT FOUND";
             // int error_len = (int)strlen(error_msg) + 7;
-            sprintf(response_msg, "HTTP/1.1 404 Not Found\r\nContent-Type: text/html\r\nContent-length: 27\r\n\r\n<h1>HTTP 404 NOT FOUND</h1>"); // 404출력
+            *response_size = sprintf(response_msg, "HTTP/1.1 404 Not Found\r\nContent-Type: text/html\r\nContent-length: 27\r\n\r\n<h1>HTTP 404 NOT FOUND</h1>"); // 404출력
+            // *response_msg = 
+            printf("@@@@@@@@@@@@@@@\n%s\n@@@@@@@@@@@@@@@@\n",response_msg);
         }
         else{ // 아무런 이상이 없다.
             printf("request file function %s \n", filename);
-            request_file(response_msg, request_msg, filename+1, file_extesion); // 파일 확장자에 따라 파일을 처리해 준다.
+            request_file(response_msg, request_msg, filename+1, file_extesion, response_size); // 파일 확장자에 따라 파일을 처리해 준다.
         }
     }
 }
 
 
-void request_print(char *response_msg, char *request_msg){
+void request_print(char *response_msg, char *request_msg, int *response_size){
     char *p = strtok(request_msg, "\n");
     char *req = malloc(sizeof(char)*MSG_SIZE);
     memset(req,0,sizeof(char)*MSG_SIZE);
@@ -145,23 +151,26 @@ void request_print(char *response_msg, char *request_msg){
         p = strtok(NULL, "\n");
     }
     int content_length = 7 + strlen(req); // 처음부터 req에 strcat <h> 하고 나중에 </h>붙이고 길이 구하면 더 간단해질듯.
-    sprintf(response_msg, "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-length: %d\r\n\r\n<h>%s</h>",content_length,req);
+    *response_size = sprintf(response_msg, "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-length: %d\r\n\r\n<h>%s</h>",content_length,req);
+    printf("@@@@@@@@@@@@@@@\n%s\n@@@@@@@@@@@@@@@@\n",response_msg);
 }
 
-void request_file(char *response_msg, char *request_msg, char *filename, char *file_extension){
+void request_file(char *response_msg, char *request_msg, char *filename, char *file_extension, int *response_size){
     //맨 처음엔
+    printf("request file : %s\n", file_extension);
     if(!strcmp(file_extension, "html")){
-        request_html_file(response_msg, request_msg, filename);
+        request_html_file(response_msg, request_msg, filename, response_size);
     }
     else if(!strcmp(file_extension, "mp3")){
-        request_mp3_file(response_msg, request_msg, filename);
+        request_mp3_file(response_msg, request_msg, filename, response_size);
     }
     else if(!strcmp(file_extension, "jpeg") || !strcmp(file_extension, "jpg")){
-        request_image_file(response_msg, request_msg, filename);
+        printf("image request!!1\n");
+        request_image_file(response_msg, request_msg, filename, response_size);
     }
 }
 
-void request_html_file(char *response_msg, char *request_msg, char *filename){
+void request_html_file(char *response_msg, char *request_msg, char *filename, int *response_size){
     FILE* openfile; // html 파일
     openfile = fopen(filename, "r"); // read로 열자.
     char *req = malloc(sizeof(char)*MSG_SIZE); // 메모리 아낄러면 response에 계속 strcat 하는게 제일 좋을 듯.
@@ -169,20 +178,108 @@ void request_html_file(char *response_msg, char *request_msg, char *filename){
     while( (c = fgetc(openfile)) != EOF ){
         req[idx++] = c;
     }
+    req[idx] = 0;
     fclose(openfile);
-    sprintf(response_msg, "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-length: %ld\r\n\r\n%s",strlen(req), req);
+    *response_size = sprintf(response_msg, "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-length: %ld\r\n\r\n%s",strlen(req), req);
+    printf("@@@@@@@@@@@@@@@\n%s\n@@@@@@@@@@@@@@@@\n",response_msg);
 }
 
-void request_mp3_file(char *response_msg, char *request_msg, char *filename){
+void request_mp3_file(char *response_msg, char *request_msg, char *filename, int *response_size){
     char *req = malloc(sizeof(char)*MSG_SIZE); // 메모리 아낄러면 response에 계속 strcat 하는게 제일 좋을 듯.
-    sprintf(req, "<!DOCTYPE html>\n<body>\n<figure>\n\t<audio controls>\n\t<source=\"%s\">Your browser does not support the<code>audio</code> element.\n\t</audio>\n</figure>\n</body>\n</html>",filename);
-    sprintf(response_msg, "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-length: %ld\r\n\r\n%s",strlen(req), req);
+    sprintf(response_msg, "HTTP/1.1 200 OK\r\nContent-Type: audio/mpeg3\r\nContent-length: %ld\r\n\r\n%s",strlen(req), req);
 }
 
-void request_image_file(char *response_msg, char *request_msg, char *filename){
-    char *req = malloc(sizeof(char)*MSG_SIZE); // 메모리 아낄러면 response에 계속 strcat 하는게 제일 좋을 듯.
-    sprintf(req, "<!DOCTYPE html>\n<body>\n<h1>image</h1>\n<img src=\"%s\"/>\n</body>\n</html>",filename);
-    sprintf(response_msg, "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-length: %ld\r\n\r\n%s",strlen(req), req);
+void request_image_file(char *response_msg, char *request_msg, char *filename, int *response_size){
+    printf("image function wwwww\n");
+    FILE *openfile;
+    if( (openfile = fopen(filename, "rb")) < 0){ exit(0); }
+    printf("open the file : %s\n",filename);
+    fseek(openfile, 0, SEEK_END);
+    int file_size = ftell(openfile);
+    
+    fseek(openfile, 0, SEEK_SET);
+    int leng= sprintf(response_msg, "HTTP/1.1 200 OK\r\ncontent-Type: image/jpeg\r\ncontent-length: %d\r\n\r\n", file_size);
+    *response_size = file_size + leng;
+    // int leng= sprintf(response_msg, "HTTP/1.1 200 OK\r\nContent-Type: image/jpeg\r\nTransfer-Encoding: chunked\r\n\r\n");
+    printf("Sending Picture as Byte Array %d\n", file_size);
+    // // no link between BUFSIZE and the file size
+    unsigned char read_buffer[1000];
+    // unsigned char send_buffer[1000000];
+    unsigned char *send_buffer;
+    send_buffer = malloc(1000000);
+    // send_buffer = (int*)malloc(1000000);
+    memset(send_buffer, 0 , sizeof(char)*1000000);
+    int cout = 0;
+    int total = 0;
+    printf("!!!!%ld\n",strlen(send_buffer));
+    fread(send_buffer, file_size, 1, openfile);
+    int i=0,j;
+    int c = 100;
+    printf("buffer size : %d\n", sizeof(send_buffer));
+    // printf("%02X\n",(int)send_buffer[339241]);
+    // printf("%02X\n",(int)send_buffer[339242]); // 마지막
+    // printf("%02X\n",(int)send_buffer[339243]);
+    // printf("%02X\n",(int)send_buffer[339244]);
+    // printf("%02X\n",(int)send_buffer[339245]);
+    
+    // printf("%02X\n",(int)send_buffer[7724]); // a마지ㅣ막
+    // printf("%02X\n",(int)send_buffer[7725]); 
+    // printf("%02X\n",(int)send_buffer[7726]);
+    // printf("%02X\n",(int)send_buffer[7727]);
+    printf("%d %d\n",response_msg[leng], '\n'); //leng -1지점이 \n 이고 leng이 NULL
+    // for(i=0,j=leng ; i< file_size ;i++,j++){
+    //     if( i == 0){
+    //         printf("---%X---\n",(int)send_buffer[i]);
+    //         printf("---%X---\n",(int)response_msg[j]);
+    //     }
+    //     // response_msg[j] = send_buffer[i];  오류는 아니고 맨 앞값이 FFFFFF-- 으로 채워짐
+        
+
+    //     if( i == 0){
+    //         printf("---%X---\n",(int)send_buffer[i]);
+    //         printf("---%X---\n",(int)response_msg[j]);
+    //     }
+    // }
+    printf("leng is %d\n",leng);
+    memcpy(response_msg+leng,  send_buffer, file_size);
+    // printf("---%02X---\n",(int)send_buffer[7724]);
+    // printf("---%02X---\n",(int)response_msg[leng]);
+    // printf("---%02X---\n",(int)response_msg[leng+7724]);
+    // strncat(response_msg, send_buffer, (size_t)file_size);
+    
+    // while (i < sizeof(send_buffer))
+    // while (c--)
+    // {
+    //      printf("%02X",(int)send_buffer[i]);
+    //      printf("%02X",(int)response_msg[i]);
+    //      i++;
+    // }
+    // while( !feof(openfile)){
+    // // while( cout != 0 ){
+    //     memset(read_buffer, 0 , sizeof(char)*1000);
+    //     cout = fread(send_buffer, sizeof(char), 850, openfile);
+        
+    //     strcat(send_buffer, read_buffer);
+    //     total += cout;
+        
+    //     // printf("total : %d\n",total);
+    // }
+    // printf("%02X\n", (int)response_msg[67]); //1
+    // printf("%02X\n", (int)response_msg[68]); //2
+    // printf("%02X\n", (int)response_msg[69]); //3
+    // printf("%02X\n", (int)response_msg[70]); //4
+    // printf("%02X\n", (int)response_msg[71]); //5 // this
+    // printf("%02X\n", (int)response_msg[72]); //5 // this
+    printf("!!!!%ld\n",strlen(send_buffer));
+
+    // printf("%02X\n", (int)response_msg[67]); //1
+    // printf("%02X\n", (int)response_msg[68]); //2
+    // printf("%02X\n", (int)response_msg[69]); //3
+    // printf("%02X\n", (int)response_msg[70]); //4
+    // printf("%02X\n", (int)response_msg[71]); //5 // this
+    // int idx=0;
+    fclose(openfile);
+    
 }
 
 char* get_content_type(char *filename, char *file_extension){

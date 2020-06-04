@@ -1,13 +1,20 @@
+
+
+
+
 **Simple Web Server in C**
 ======================
  - Part1 : Web browser only see the HTTP request Message.
  - Part2 : Web browser can see the HTTP request Message, html, gif, jpg, pdf and download the mp3 file.
 
 
-**Your Shell**
-> make
-> ./server {your port number}
+----------
 
+
+**Your Shell**
+
+>  1. make
+>  2. ./server {your port number}
 
 ----------
 

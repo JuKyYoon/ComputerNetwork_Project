@@ -14,10 +14,11 @@ void error_print(char *error_msg);
 void request_print(char *response_msg, char *request_msg, int *response_size);
 void request_file(char *response_msg, char *request_msg, char *filename, char *file_extension, int *response_size);
 void request_handle(char *response_msg, char *request_msg, int *response_size);
-void request_html_file(char *response_msg, char *request_msg, char *filename, int *response_size);
-void request_mp3_file(char *response_msg, char *request_msg, char *filename, int *response_size);
-void request_pdf_file(char *response_msg, char *request_msg, char *filename, int *response_size);
-void request_image_file(char *response_msg, char *request_msg, char *filename, int *response_size);
+
+char *http_status_code(int code);
+void response_error(char *response_msg, int *response_size, int error_code);
+
+void request_file_handler(char *response_msg, char *request_msg, char *filename, int *response_size, char *content_type);
 char* get_content_type(char *filename, char *file_extension);
 
 int main(int argc, char *argv[]){
@@ -73,8 +74,6 @@ int main(int argc, char *argv[]){
         if( (socket_fd = accept( server_socket_fd, (struct sockaddr *)&client_addr, &req_client)) < 0){
             error_print("Fail to accpet");
         }
-
-        
         printf("connection is successful : address: %s, port = % d\n", 
             inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
         
@@ -82,19 +81,13 @@ int main(int argc, char *argv[]){
         if( read(socket_fd, request_msg, MSG_SIZE) < 0 ){
             error_print("Fail to read");
         }
-        printf("accept the request\n");
-        // printf("%s\n",request_msg);
-        
-        request_handle(response_msg, request_msg, &response_size);
-        
-        printf("***&&&&&%d--\n", response_size);
+        if(strlen(request_msg) == 0) { response_error(response_msg, &response_size, 402); }
+        else{ request_handle(response_msg, request_msg, &response_size);}
 
         if ( write(socket_fd, response_msg, response_size)  < 0 ) { 
             error_print("Fail to writing to socket.");
         }
         close(socket_fd);
-        printf("----------------\n");
-        
     }
 
     free(response_msg);
@@ -106,44 +99,30 @@ int main(int argc, char *argv[]){
 
 
 void request_handle(char *response_msg, char *request_msg, int *response_size){
-    printf("first request handle function\n");
     char *request_msg_copy = malloc( sizeof(char)*100000); // 복사본 생성
-
-    strcpy(request_msg_copy, request_msg);
-    // printf("\n%s\n", request_msg_copy);
-    printf("%s",request_msg_copy);
-    printf("complete copy\n");
-    char method[50];
+    strcpy(request_msg_copy, request_msg); // 가씀씩 request_msg 가 안 받아 와짐
     char *filename; // '/' 로 잘라서 request 분석해보장
     char content_type[50];
     char *file_extesion;
-    file_extesion = malloc(sizeof(char)*30);
-    filename = malloc(sizeof(char)*200);
-    printf("waiting strcpy method\n");
-    strcpy(method, strtok(request_msg_copy, " ")); //method 'GET'
-    printf("complete method\n");
+    file_extesion = malloc(sizeof(char)*300);
+    filename = malloc(sizeof(char)*600);
+    strtok(request_msg_copy, " ");
     strcpy(filename, strtok(NULL," ")); // file name  ex) '/index.html', '/'
-    printf("complete filename\n");
     free(request_msg_copy);
+
     if (!strcmp(filename, "/") ){ // 입력받은 파일이 없을 경우
         request_print(response_msg, request_msg, response_size); // request 파일을 출력해준다.
     }
     else{ // 입력받은 파일이 있을 경우
         strcpy(content_type, get_content_type(filename,file_extesion)); // 파일의 확장자 명을 가져온다.
         if( !strcmp(content_type, "nomake") || access(filename+1,F_OK) < 0 ){ // 확장자 얻는 과정에서 이상이 있다. 혹은 해당 파일이 없다.
-            // char error_msg[20] = "HTTP 404 NOT FOUND";
-            // int error_len = (int)strlen(error_msg) + 7;
-            *response_size = sprintf(response_msg, "HTTP/1.1 404 Not Found\r\nContent-Type: text/html\r\nContent-length: 27\r\n\r\n<h1>HTTP 404 NOT FOUND</h1>"); // 404출력
-            // *response_msg = 
-            printf("@@@@@@@@@@@@@@@\n%s\n@@@@@@@@@@@@@@@@\n",response_msg);
+            response_error(response_msg, response_size, 404);
         }
         else{ // 아무런 이상이 없다.
-            printf("request file function %s \n", filename);
-            request_file(response_msg, request_msg, filename+1, file_extesion, response_size); // 파일 확장자에 따라 파일을 처리해 준다.
+            request_file_handler(response_msg, request_msg, filename+1, response_size, content_type);
         }
     }
 }
-
 
 void request_print(char *response_msg, char *request_msg, int *response_size){
     char *p = strtok(request_msg, "\n");
@@ -157,169 +136,47 @@ void request_print(char *response_msg, char *request_msg, int *response_size){
     int content_length = 7 + strlen(req); // 처음부터 req에 strcat <h> 하고 나중에 </h>붙이고 길이 구하면 더 간단해질듯.
     *response_size = sprintf(response_msg, "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-length: %d\r\n\r\n<h>%s</h>",content_length,req);
     free(req);
-    printf("@@@@@@@@@@@@@@@\n%s\n@@@@@@@@@@@@@@@@\n",response_msg);
 }
 
-void request_file(char *response_msg, char *request_msg, char *filename, char *file_extension, int *response_size){
-    //맨 처음엔
-    printf("request file : %s\n", file_extension);
-    if(!strcmp(file_extension, "html")){
-        request_html_file(response_msg, request_msg, filename, response_size);
-    }
-    else if(!strcmp(file_extension, "mp3")){
-        request_mp3_file(response_msg, request_msg, filename, response_size);
-    }
-    else if(!strcmp(file_extension, "jpeg") || !strcmp(file_extension, "jpg")){
-        printf("image request!!1\n");
-        request_image_file(response_msg, request_msg, filename, response_size);
-    }
-    else if(!strcmp(file_extension, "pdf")){
-        request_pdf_file(response_msg, request_msg, filename, response_size);
-    }
+
+void response_error(char *response_msg, int *response_size, int error_code){
+    char *status_str = http_status_code(error_code);
+    int content_length = 18+strlen(status_str);
+    *response_size = sprintf(response_msg, "HTTP/1.1 %d %s\r\nContent-Type: text/html\r\nContent-length: 27\r\n\r\n<h1>HTTP %d %s</h1>",error_code,status_str,error_code,status_str); // 404출력
 }
 
-void request_html_file(char *response_msg, char *request_msg, char *filename, int *response_size){
-    FILE* openfile; // html 파일
-    openfile = fopen(filename, "r"); // read로 열자.
-    char *req = malloc(sizeof(char)*MSG_SIZE); // 메모리 아낄러면 response에 계속 strcat 하는게 제일 좋을 듯.
-    int idx = 0, c;
-    while( (c = fgetc(openfile)) != EOF ){
-        req[idx++] = c;
-    }
-    req[idx] = 0;
-    fclose(openfile);
-    *response_size = sprintf(response_msg, "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-length: %ld\r\n\r\n%s",strlen(req), req);
-    free(req);
-    printf("@@@@@@@@@@@@@@@\n%s\n@@@@@@@@@@@@@@@@\n",response_msg);
-}
-
-void request_mp3_file(char *response_msg, char *request_msg, char *filename, int *response_size){
-    printf("audio function wwwww\n");
+void request_file_handler(char *response_msg, char *request_msg, char *filename, int *response_size, char *content_type){
     FILE *openfile;
-    if( (openfile = fopen(filename, "rb")) < 0){ exit(0); }
-    printf("open the file : %s\n",filename);
+    if( (openfile = fopen(filename, "rb")) == NULL ){
+        response_error(response_msg, response_size, 403);
+        return ;
+    }
     fseek(openfile, 0, SEEK_END);
     int file_size = ftell(openfile);
-    
     fseek(openfile, 0, SEEK_SET);
-    int leng= sprintf(response_msg, "HTTP/1.1 200 OK\r\ncontent-Type: audio/mpeg3\r\ncontent-length: %d\r\n\r\n", file_size);
-    *response_size = file_size + leng;
-    printf("Sending Picture as Byte Array %d\n", file_size);
-    // // no link between BUFSIZE and the file size
-    unsigned char read_buffer[1000];
 
+    if(file_size > 100000000){
+        response_error(response_msg, response_size, 400);
+        fclose(openfile);
+        return ;
+    }
+
+    int leng= sprintf(response_msg, "HTTP/1.1 200 OK\r\ncontent-Type: %s\r\ncontent-length: %d\r\n\r\n", content_type, file_size);
+     *response_size = file_size + leng;
     unsigned char *send_buffer;
     send_buffer = malloc(100000000);
-
-    memset(send_buffer, 0 , sizeof(char)*100000000);
-    int cout = 0;
-    int total = 0;
-    printf("!!!!%ld\n",strlen(send_buffer));
     fread(send_buffer, file_size, 1, openfile);
-    int i=0,j;
-    int c = 100;
-    printf("buffer size : %d\n", sizeof(send_buffer));
-
-    printf("___%d $\n", total);
-
-    printf("leng is %d\n",leng);
-    printf("%02X\n",(int)send_buffer[0]);
-    printf("%02X\n",(int)send_buffer[1]);
-    printf("%02X\n",(int)send_buffer[file_size-2]);
-    printf("%02X\n",(int)send_buffer[file_size-1]); // last data
-    printf("%02X\n",(int)send_buffer[file_size]);
-    printf("%02X\n",(int)send_buffer[file_size+1]);
     memcpy(response_msg+leng,  send_buffer, file_size);
-    // strcat(request_msg, send_buffer);
-    printf("!!!!%ld\n",strlen(send_buffer));
     free(send_buffer);
     fclose(openfile);
 }
 
-void request_image_file(char *response_msg, char *request_msg, char *filename, int *response_size){
-    printf("image function wwwww\n");
-    FILE *openfile;
-    if( (openfile = fopen(filename, "rb")) < 0){ exit(0); }
-    printf("open the file : %s\n",filename);
-    fseek(openfile, 0, SEEK_END);
-    int file_size = ftell(openfile);
-    
-    fseek(openfile, 0, SEEK_SET);
-    int leng= sprintf(response_msg, "HTTP/1.1 200 OK\r\ncontent-Type: image/jpeg\r\ncontent-length: %d\r\n\r\n", file_size);
-    *response_size = file_size + leng;
-    printf("Sending Picture as Byte Array %d\n", file_size);
-    // // no link between BUFSIZE and the file size
-    unsigned char read_buffer[1000];
 
-    unsigned char *send_buffer;
-    send_buffer = malloc(sizeof(char)*100000000);
 
-    memset(send_buffer, 0 , sizeof(char)*100000000);
-    int cout = 0;
-    int total = 0;
-    printf("!!!!%ld\n",strlen(send_buffer));
-    fread(send_buffer, file_size, 1, openfile);
-    int i=0,j;
-    int c = 100;
-    printf("buffer size : %d\n", sizeof(send_buffer));
-
-    printf("%d %d\n",response_msg[leng], '\n'); //leng -1지점이 \n 이고 leng이 NULL
-
-    printf("leng is %d\n",leng);
-    memcpy(response_msg+leng,  send_buffer, file_size);
-
-    printf("!!!!%ld\n",strlen(send_buffer));
-    free(send_buffer);
-    fclose(openfile);
-    
-}
-
-void request_pdf_file(char *response_msg, char *request_msg, char *filename, int *response_size){
-    printf("pdf function wwwww\n");
-    FILE *openfile;
-    if( (openfile = fopen(filename, "rb")) < 0){ exit(0); }
-    printf("open the file : %s\n",filename);
-    fseek(openfile, 0, SEEK_END);
-    int file_size = ftell(openfile);
-    
-    fseek(openfile, 0, SEEK_SET);
-    int leng= sprintf(response_msg, "HTTP/1.1 200 OK\r\ncontent-Type: application/pdf; qs=0.001\r\ncontent-length: %d\r\n\r\n", file_size);
-    *response_size = file_size + leng;
-    printf("Sending Picture as Byte Array %d\n", file_size);
-    // // no link between BUFSIZE and the file size
-    unsigned char read_buffer[1000];
-
-    unsigned char *send_buffer;
-    send_buffer = malloc(100000000);
-
-    memset(send_buffer, 0 , sizeof(char)*100000000);
-    int cout = 0;
-    int total = 0;
-    printf("!!!!%ld\n",strlen(send_buffer));
-    fread(send_buffer, file_size, 1, openfile);
-    int i=0,j;
-    int c = 100;
-    printf("buffer size : %d\n", sizeof(send_buffer));
-
-    printf("___%d $\n", total);
-
-    printf("leng is %d\n",leng);
-    printf("%02X\n",(int)send_buffer[0]);
-    printf("%02X\n",(int)send_buffer[1]);
-    printf("%02X\n",(int)send_buffer[file_size-2]);
-    printf("%02X\n",(int)send_buffer[file_size-1]); // last data
-    printf("%02X\n",(int)send_buffer[file_size]);
-    printf("%02X\n",(int)send_buffer[file_size+1]);
-    memcpy(response_msg+leng,  send_buffer, file_size);
-    // strcat(request_msg, send_buffer);
-    printf("!!!!%ld\n",strlen(send_buffer));
-    free(send_buffer);
-    fclose(openfile);
-}
 
 char* get_content_type(char *filename, char *file_extension){
     if (!strcmp(filename, "/") ){ // 입력받은 파일이 없을 경우
-        return "requestprint"; // request 파일을 출력해준다.
+        return "text/html"; // request 파일을 출력해준다.
     }
 
     char name[100];
@@ -351,6 +208,9 @@ char* get_content_type(char *filename, char *file_extension){
     if(!strcmp(file_type+1, "jpg") || !strcmp(file_type+1, "jpeg")){
         return "image/jpeg";
     }
+    if(!strcmp(file_type+1, "png")){
+        return "image/png";
+    }
     if(!strcmp(file_type+1, "pdf")){
         return "application/pdf";
     }
@@ -360,4 +220,19 @@ char* get_content_type(char *filename, char *file_extension){
 void error_print(char *error_msg){
     perror(error_msg);
     exit(1);
+}
+
+char *http_status_code(int code){
+    if( code == 400){
+        return "Bad Request";;
+    }
+    if (code == 404){
+        return "Not Found";
+    }
+    if (code == 403){
+        return "Forbidden";
+    }
+    else{
+        return "I don't know";
+    }
 }

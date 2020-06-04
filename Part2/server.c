@@ -10,16 +10,12 @@
 
 #define MSG_SIZE 100000000 // 최대 약 1억 byte크기의 파일이 전송될 수 있다. (헤더길이 때문에 1억byte보다 약간 더 작다.)
 
-
-void request_handle(char *response_msg, char *request_msg, int *response_size); // 리퀘스트 처리 함수
-void request_print(char *response_msg, char *request_msg, int *response_size); // Part1 요구사항 = 리퀘스트 메시지 출력
-void request_file_handler(char *response_msg, char *request_msg, char *filename, int *response_size, char *content_type); // Part2 요구사항 = 파일 인식
-
-void response_error(char *response_msg, int *response_size, int error_code); // HTTP 클라이언트 에러 처리
-
+void request_handle(unsigned char *response_msg, char *request_msg, int *response_size); // 리퀘스트 처리 함수
+void request_print(unsigned char *response_msg, char *request_msg, int *response_size); // response message를 만드는 함수 (프로젝트 Part1)
+void request_file_handler(unsigned char *response_msg, char *request_msg, char *filename, int *response_size, char *content_type); // Part2 요구사항 = 파일 인식
+void response_error(unsigned char *response_msg, int *response_size, int error_code); // HTTP 클라이언트 에러 처리
 char *get_content_type(char *filename, char *file_extension); // 파일 확장자 및 content-type
 char *http_status_code(int code); //  HTTP 상태
-
 void error_print(char *error_msg); // 에러문 출력 및 서버 종료
 
 int main(int argc, char *argv[]){
@@ -90,7 +86,7 @@ int main(int argc, char *argv[]){
 }
 
 
-void request_handle(char *response_msg, char *request_msg, int *response_size){ 
+void request_handle(unsigned char *response_msg, char *request_msg, int *response_size){ 
     char *request_msg_copy = malloc( sizeof(char)*MSG_SIZE); // strtok 때문에 복사본을 만든다.
     strcpy(request_msg_copy, request_msg); // 문자열 복사
     char *filename; // 파일 이름. 파일 이름 앞에 '/' 문자가 붙는다.
@@ -118,7 +114,7 @@ void request_handle(char *response_msg, char *request_msg, int *response_size){
     free(file_extesion); // 메모리 해제
 }
 
-void request_print(char *response_msg, char *request_msg, int *response_size){ // request message를 출력해주는 함수 (프로젝트 Part1)
+void request_print(unsigned char *response_msg, char *request_msg, int *response_size){ // request message를 출력해주는 함수 (프로젝트 Part1)
     char *p = strtok(request_msg, "\n"); // request message를 html형태로 변환시키기 위해 줄바꿈 문자를 <br> 태그로 변경해 주었다.
     char *req = malloc(sizeof(char)*MSG_SIZE);
     memset(req,0,sizeof(char)*MSG_SIZE);
@@ -128,20 +124,19 @@ void request_print(char *response_msg, char *request_msg, int *response_size){ /
         p = strtok(NULL, "\n");
     }
     int content_length = 7 + strlen(req); // content-length field를 위해 값을 구하였다.
-    *response_size = sprintf(response_msg, "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-length: %d\r\n\r\n<h>%s</h>",content_length,req); // response_msg를 만들고 response 메시지의 길이를 구했다.
+    *response_size = sprintf((char *)response_msg, "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-length: %d\r\n\r\n<h>%s</h>",content_length,req); // response_msg를 만들고 response 메시지의 길이를 구했다.
     free(req); // 메모리 해제
 }
 
 
-void response_error(char *response_msg, int *response_size, int error_code){ //클라이언트에서 잘못 요청이 들어왔을 시 어떤 에러인지 보여주는 함수.
+void response_error(unsigned char *response_msg, int *response_size, int error_code){ //클라이언트에서 잘못 요청이 들어왔을 시 어떤 에러인지 보여주는 함수.
     char *status_str = http_status_code(error_code); // 에러 코드를 이용해 어떤 에러인지 문자열로 갖고온다.
     int content_length = 18+strlen(status_str); // content-length field를 위해 값을 구하였다.
-
     // response_msg를 만들고 response 메시지의 길이를 구했다. 어떤 에러인지 보여주기 위해 html로 response했다.
-    *response_size = sprintf(response_msg, "HTTP/1.1 %d %s\r\nContent-Type: text/html\r\nContent-length: 27\r\n\r\n<h1>HTTP %d %s</h1>",error_code,status_str,error_code,status_str); 
+    *response_size = sprintf((char *)response_msg, "HTTP/1.1 %d %s\r\nContent-Type: text/html\r\nContent-length: %d\r\n\r\n<h1>HTTP %d %s</h1>",error_code,status_str,content_length, error_code,status_str); 
 }
 
-void request_file_handler(char *response_msg, char *request_msg, char *filename, int *response_size, char *content_type){ // 파일이 요청되었다면 그에 해당되는 response를 해주는 함수.
+void request_file_handler(unsigned char *response_msg, char *request_msg, char *filename, int *response_size, char *content_type){ // 파일이 요청되었다면 그에 해당되는 response를 해주는 함수.
     FILE *openfile; // 서버에서 여는 요청받은 파일
     if( (openfile = fopen(filename, "rb")) == NULL ){ // 파일이 열리지 않았다면
         response_error(response_msg, response_size, 403); // HTTP 403으로 응답한다.
@@ -159,7 +154,7 @@ void request_file_handler(char *response_msg, char *request_msg, char *filename,
         return ;
     }
 
-    int leng= sprintf(response_msg, "HTTP/1.1 200 OK\r\ncontent-Type: %s\r\ncontent-length: %d\r\n\r\n", content_type, file_size); // HTTP 헤더를 만든다.
+    int leng= sprintf((char *)response_msg, "HTTP/1.1 200 OK\r\ncontent-Type: %s\r\ncontent-length: %d\r\n\r\n", content_type, file_size); // HTTP 헤더를 만든다.
     *response_size = file_size + leng; //HTTP헤더길이 + content-length = response message 길이
     unsigned char *send_buffer; // 파일을 읽을 버퍼
     send_buffer = malloc(MSG_SIZE); // 버퍼에 메모리 할당

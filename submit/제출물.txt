@@ -29,7 +29,7 @@ http:\\localhost:8080/파일이름
 
 
 
-
+Upgrade InSecure Requests보내면 무조건 Strict-Transport-Security 로 response해줘야함
 
 
 
